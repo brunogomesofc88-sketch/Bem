@@ -4,7 +4,7 @@ import TikTokLiveConnection from "tiktok-live-connector";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || "seu_user";
+const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || "gotiicaff";
 
 // --- HTTP (Render precisa de HTTP rodando) ---
 app.get("/", (req, res) => {
