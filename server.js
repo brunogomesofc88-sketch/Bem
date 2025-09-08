@@ -41,7 +41,7 @@ connection.on(WebcastEvent.GIFT, data => {
   broadcast({
     type: "gift",
     user: data.user.uniqueId,
-    gift: data.giftName,
+    gift: "moeda",
     amount: data.repeatCount
   });
 });
