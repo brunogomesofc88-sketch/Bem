@@ -1,56 +1,60 @@
 import express from "express";
 import { WebSocketServer } from "ws";
-import TikTokLiveConnection from "tiktok-live-connector";
+import { TikTokLiveConnection, WebcastEvent } from "tiktok-live-connector";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || "gotiicaff";
 
-// --- HTTP (Render precisa de HTTP rodando) ---
+// Servidor HTTP (Render precisa disso)
 app.get("/", (req, res) => {
   res.send("✅ Servidor TikTok Live rodando!");
 });
 const server = app.listen(PORT, () =>
-  console.log(`🌐 Servidor HTTP rodando na porta ${PORT}`)
+  console.log(`🌐 HTTP rodando na porta ${PORT}`)
 );
 
-// --- WEBSOCKET SERVER ---
+// Servidor WebSocket
 const wss = new WebSocketServer({ server });
 function broadcast(data) {
   const msg = JSON.stringify(data);
-  wss.clients.forEach((client) => {
+  wss.clients.forEach(client => {
     if (client.readyState === 1) client.send(msg);
   });
 }
 
-// --- TIKTOK LIVE ---
-let tiktok = new TikTokLiveConnection(TIKTOK_USERNAME, {
-  enableExtendedGiftInfo: true,
+// Conectar ao TikTok
+let connection = new TikTokLiveConnection(TIKTOK_USERNAME);
+
+connection.connect()
+  .then(state => {
+    console.log(`✅ Conectado à live de @${TIKTOK_USERNAME}, roomId: ${state.roomId}`);
+  })
+  .catch(err => console.error("❌ Erro ao conectar:", err));
+
+// Eventos
+connection.on(WebcastEvent.CHAT, data => {
+  broadcast({ type: "chat", user: data.user.uniqueId, comment: data.comment });
 });
 
-// Evento: conectado
-tiktok.connect().then(() => {
-  console.log(`🎥 Conectado à live de @${TIKTOK_USERNAME}`);
-});
-
-// Evento: usuário entrou
-tiktok.on("roomUser", (msg) => {
-  if (msg.user) {
-    broadcast({
-      type: "join",
-      user: msg.user.uniqueId,
-      profilePic: msg.user.profilePictureUrl,
-    });
-  }
-});
-
-// Evento: presente enviado
-tiktok.on("gift", (msg) => {
+connection.on(WebcastEvent.GIFT, data => {
   broadcast({
     type: "gift",
-    user: msg.uniqueId,
-    profilePic: msg.profilePictureUrl,
-    gift: msg.giftName,
-    amount: msg.repeatCount,
+    user: data.user.uniqueId,
+    gift: data.giftName,
+    amount: data.repeatCount
   });
+});
+
+connection.on(WebcastEvent.LIKE, data => {
+  broadcast({
+    type: "like",
+    user: data.user.uniqueId,
+    likeCount: data.likeCount,
+    total: data.totalLikeCount
+  });
+});
+
+connection.on(WebcastEvent.MEMBER, data => {
+  broadcast({ type: "join", user: data.user.uniqueId });
 });
