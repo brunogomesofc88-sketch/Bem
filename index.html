@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>🎥 TikTok Live Overlay</title>
+  <style>
+    body {
+      margin: 0; padding: 20px;
+      background: #111; color: white;
+      font-family: Arial, sans-serif;
+    }
+    #log { max-height: 90vh; overflow-y: auto; }
+    .msg {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #222;
+    }
+    .chat { border-left: 4px solid #4cafef; }
+    .gift { border-left: 4px solid gold; }
+    .like { border-left: 4px solid pink; }
+    .join { border-left: 4px solid lightgreen; }
+  </style>
+</head>
+<body>
+  <h2>🔴 TikTok Live Eventos</h2>
+  <div id="log"></div>
+
+  <script>
+    let ws = new WebSocket("https://bem-1-vqf7.onrender.com");
+
+    ws.onmessage = (event) => {
+      let data = JSON.parse(event.data);
+      let log = document.getElementById("log");
+
+      let div = document.createElement("div");
+      div.className = "msg " + data.type;
+
+      if (data.type === "chat") {
+        div.innerText = `💬 @${data.user}: ${data.comment}`;
+      }
+      if (data.type === "gift") {
+        div.innerText = `🎁 @${data.user} enviou ${data.gift} x${data.amount}`;
+      }
+      if (data.type === "like") {
+        div.innerText = `❤️ @${data.user} deu ${data.likeCount} likes (total: ${data.total})`;
+      }
+      if (data.type === "join") {
+        div.innerText = `🙋 @${data.user} entrou na live`;
+      }
+
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    };
+  </script>
+</body>
+</html>
