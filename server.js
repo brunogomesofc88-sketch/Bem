@@ -1,68 +1,56 @@
-import asyncio
-import json
-import os
-import websockets
-from tiktoklive import TikTokLiveClient
-from tiktoklive.events import JoinEvent, GiftEvent
+import express from "express";
+import { WebSocketServer } from "ws";
+import TikTokLiveConnection from "tiktok-live-connector";
 
-# ⚠️ Defina o @ da sua conta TikTok em variável de ambiente no Render
-TIKTOK_USERNAME = os.getenv("TIKTOK_USERNAME", "seu_user")
+const app = express();
+const PORT = process.env.PORT || 8080;
+const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || "seu_user";
 
-# Lista de conexões WebSocket ativas (navegadores conectados)
-connections = set()
+// --- HTTP (Render precisa de HTTP rodando) ---
+app.get("/", (req, res) => {
+  res.send("✅ Servidor TikTok Live rodando!");
+});
+const server = app.listen(PORT, () =>
+  console.log(`🌐 Servidor HTTP rodando na porta ${PORT}`)
+);
 
-# Cliente TikTokLive
-client = TikTokLiveClient(unique_id=TIKTOK_USERNAME)
+// --- WEBSOCKET SERVER ---
+const wss = new WebSocketServer({ server });
+function broadcast(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === 1) client.send(msg);
+  });
+}
 
+// --- TIKTOK LIVE ---
+let tiktok = new TikTokLiveConnection(TIKTOK_USERNAME, {
+  enableExtendedGiftInfo: true,
+});
 
-# WebSocket handler: cuida das conexões do navegador
-async def ws_handler(websocket):
-    connections.add(websocket)
-    try:
-        async for _ in websocket:
-            pass  # não esperamos mensagens do cliente, só enviamos
-    finally:
-        connections.remove(websocket)
+// Evento: conectado
+tiktok.connect().then(() => {
+  console.log(`🎥 Conectado à live de @${TIKTOK_USERNAME}`);
+});
 
+// Evento: usuário entrou
+tiktok.on("roomUser", (msg) => {
+  if (msg.user) {
+    broadcast({
+      type: "join",
+      user: msg.user.uniqueId,
+      profilePic: msg.user.profilePictureUrl,
+    });
+  }
+});
 
-# Função para enviar eventos para todos conectados
-async def broadcast(data):
-    if connections:
-        msg = json.dumps(data)
-        await asyncio.gather(*(ws.send(msg) for ws in connections))
-
-
-# Evento: alguém entrou na live
-@client.on("join")
-async def on_join(event: JoinEvent):
-    data = {
-        "type": "join",
-        "user": event.user.unique_id,
-        "profilePic": event.user.profile_picture.url
-    }
-    await broadcast(data)
-
-
-# Evento: alguém mandou presente (opcional, para integrar com Plinko depois)
-@client.on("gift")
-async def on_gift(event: GiftEvent):
-    data = {
-        "type": "gift",
-        "user": event.user.unique_id,
-        "profilePic": event.user.profile_picture.url,
-        "gift": event.gift.name,
-        "amount": event.gift.repeat_count
-    }
-    await broadcast(data)
-
-
-# Main
-async def main():
-    port = int(os.getenv("PORT", 8080))
-    server = await websockets.serve(ws_handler, "0.0.0.0", port)
-    print(f"✅ WebSocket rodando na porta {port} e conectado ao @{TIKTOK_USERNAME}")
-    await asyncio.gather(client.start(), server.wait_closed())
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+// Evento: presente enviado
+tiktok.on("gift", (msg) => {
+  broadcast({
+    type: "gift",
+    user: msg.uniqueId,
+    profilePic: msg.profilePictureUrl,
+    gift: msg.giftName,
+    amount: msg.repeatCount,
+  });
+});
